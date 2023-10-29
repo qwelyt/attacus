@@ -69,35 +69,53 @@ def outline():
 
 def butterfly():
     # _outline = outline()
-    with bd.BuildSketch() as skt:
-        bd.add(outline())
-        bd.add(shape(cut=True),mode=bd.Mode.SUBTRACT)
-    skt = skt.sketch
+    skt = outline()
     angle = 30
+    space = skt.bounding_box().size.X*1.6
     with bd.BuildSketch() as ske:
         bd.add(skt.rotate(bd.Axis.Z, -angle/2))
         bd.add(skt
             .mirror(mirror_plane=bd.Plane.YZ)
             .rotate(bd.Axis.Z, angle/2)
-            .move(bd.Location((skt.bounding_box().size.X*2,0,0)))
+            .move(bd.Location((space,0,0)))
             )
-    return ske.sketch
+        vs = ske.vertices().sort_by(sort_by=bd.Axis.Y)
+        pts = []
+        for idx,i in enumerate(vs):
+            if idx in [0,1,18,19]:
+                pts.append(i.to_tuple())
+        with bd.BuildLine():
+            bd.Polyline(*pts, close=True)
+        bd.make_face()
+        bd.add(shape(cut=True).sketch.rotate(bd.Axis.Z, -angle/2),mode=bd.Mode.SUBTRACT)
+        bd.add(shape(cut=True).sketch
+            .mirror(mirror_plane=bd.Plane.YZ)
+            .rotate(bd.Axis.Z, angle/2)
+            .move(bd.Location((space,0,0))),
+            mode=bd.Mode.SUBTRACT
+            )
+    
+    with bd.BuildPart() as prt:
+        bd.add(ske)
+        bd.extrude(amount=2)
+    return prt.part
 
 part = butterfly()
 #left = shape().rotate(bd.Axis.Z, -15)
-vs = part.vertices().sort_by(sort_by=bd.Axis.Y)
+# vs = part.vertices().sort_by(sort_by=bd.Axis.Y)
 
 #part = shape()
 # a = [bd.Text(idx).move(i.to_tuple()) for i in vs]
 # for idx,i in enumerate(vs):
 #     print(idx, i)
-numbers = [bd.Text(str(idx), font_size=5).move(bd.Location(i.to_tuple())) for idx,i in enumerate(vs)]
+# numbers = [bd.Text(str(idx), font_size=5).move(bd.Location(i.to_tuple())) for idx,i in enumerate(vs)]
 
 
 show(
     part,
-    numbers,
+    # numbers,
     # key_placements(),
     # _outline.rotate(bd.Axis.Z, -15),
     reset_camera=Camera.KEEP
 )
+part.export_stl(__file__.replace(".py",".stl"))
