@@ -1,3 +1,4 @@
+# %%
 from ocp_vscode import show, show_object, reset_show, set_port, set_defaults, get_defaults, Camera
 set_port(3939)
 
@@ -208,36 +209,50 @@ part = butterfly()
     # print(idx, i)
 # numbers = [bd.Text(str(idx), font_size=5).move(bd.Location(i.to_tuple())) for idx,i in enumerate(vs)]
 pm = pro_micro().rotate(bd.Axis.Z, 180).move(bd.Location(part.bounding_box().center().to_tuple())*bd.Location((0,18,1)))
-diode = diode_1n4148().rotate(bd.Axis.X, 90)#.rotate(bd.Axis.Z, 90)
+diode = diode_1n4148().rotate(bd.Axis.X, 90).rotate(bd.Axis.Z, 90)
 
-locs = bd.GridLocations(
-    diode.bounding_box().size.X+1,
-    diode.bounding_box().size.Y+2,
-    12,
-    3
-    )
-diodes = [copy.copy(diode).locate(loc) for loc in locs]
-# locs = bd.GridLocations(2,diode.bounding_box().size.Y+1,1,5)
-# locs_groups = bd.GridLocations(0, (diode.bounding_box().size.Y+1)*5, 1, 3)
-# diodes = []
-# diodes2 = []
-# diodes_long = []
-# for gidx,gloc in enumerate(locs_groups):
-#     for idx,loc in enumerate(locs):
-#         diodes.append(copy.copy(diode).locate(loc*bd.Location((idx,0,0))*gloc))
-#         diodes2.append(copy.copy(diode).locate(loc*bd.Location((-idx,0,0))*gloc))
-#         if gidx < 1 and idx < 3:
-#             diodes_long.append(copy.copy(diode).rotate(bd.Axis.Z, 90).locate(loc*bd.Location((idx*3,0,0))*gloc))
+# locs = bd.GridLocations(
+#     diode.bounding_box().size.X+1,
+#     diode.bounding_box().size.Y+2,
+#     12,
+#     3
+#     )
+# diodes = [copy.copy(diode).locate(loc) for loc in locs]
+locs = bd.GridLocations(2,diode.bounding_box().size.Y+1,1,5)
+locs_groups = bd.GridLocations(0, (diode.bounding_box().size.Y+1)*5, 1, 3)
+diodes = []
+diodes2 = []
+diodes_long = []
+for gidx,gloc in enumerate(locs_groups):
+    for idx,loc in enumerate(locs):
+        diodes.append(copy.copy(diode).locate(loc*bd.Location((idx,0,0))*gloc))
+        diodes2.append(copy.copy(diode).locate(loc*bd.Location((-idx,0,0))*gloc))
+        if gidx < 1 and idx < 3:
+            diodes_long.append(copy.copy(diode).rotate(bd.Axis.Z, 90).locate(loc*bd.Location((idx*3,0,0))*gloc))
 
-# ds = bd.Part(children=diodes)
-# dsm = bd.Part(children=diodes2)
-# dsl = (bd.Part(children=diodes_long)).rotate(bd.Axis.Z, 90)
 ds = bd.Part(children=diodes)
+dsm = bd.Part(children=diodes2)
+dsl = (bd.Part(children=diodes_long)).rotate(bd.Axis.Z, 90)
+# ds = bd.Part(children=diodes
+# %%
+
+ddr = diode.rotate(bd.Axis.Z, 75)
+locs = bd.GridLocations(
+    ddr.bounding_box().size.X+1,
+    ddr.bounding_box().size.Y-3,
+    5,
+    3
+)
+dd = [copy.copy(ddr).locate(loc) for loc in locs]
+ddp = bd.Part(children=dd).rotate(bd.Axis.Z, 20)
+
+
 show(
     part,
     # numbers,
     pm,
-    ds.locate(pm.location*bd.Location((0,-38,1))),
+    ddp.locate(pm.location*bd.Location((0,-40,1))),
+    # ds.locate(pm.location*bd.Location((0,-38,1))),
     # ds.locate(pm.location*bd.Location((-20,-30,1))),
     # dsm.locate(pm.location*bd.Location((20,-30,1))),
     # dsl.locate(pm.location*bd.Location((0,-15,1))),
@@ -250,3 +265,4 @@ show(
 )
 # pm.export_step(__file__.replace(".py","_promicro.step"))
 # part.export_stl(__file__.replace(".py",".stl"))
+# %%
