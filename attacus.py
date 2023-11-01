@@ -82,7 +82,7 @@ def bf():
 
     return ske.sketch
 
-def butterfly():
+def attacus():
     # _outline = outline()
     skt = outline()
     angle = 40
@@ -199,7 +199,7 @@ def diode_1n4148(bent=True):
         
         return prt.part
 
-part = butterfly()
+part = attacus()
 # part = bf()
 # vs = part.vertices().sort_by(sort_by=bd.Axis.X)
 
