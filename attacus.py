@@ -236,33 +236,86 @@ dsl = (bd.Part(children=diodes_long)).rotate(bd.Axis.Z, 90)
 # ds = bd.Part(children=diodes
 # %%
 
-ddr = diode.rotate(bd.Axis.Z, 75)
-locs = bd.GridLocations(
-    ddr.bounding_box().size.X+1,
-    ddr.bounding_box().size.Y-3,
+left_diode = diode.rotate(bd.Axis.Z, 10)
+right_diode = diode.rotate(bd.Axis.Z, 105)
+# locs = bd.GridLocations(
+#     left_diode.bounding_box().size.X+1,
+#     left_diode.bounding_box().size.Y*0.5,
+#     5,
+#     3
+# )
+locs = bd.HexLocations(3,
     5,
     3
 )
-dd = [copy.copy(ddr).locate(loc) for loc in locs]
-ddp = bd.Part(children=dd).rotate(bd.Axis.Z, 20)
+locs_lower = bd.GridLocations(
+    left_diode.bounding_box().size.X*0.5,
+    left_diode.bounding_box().size.Y*0.5,
+    3,
+    1
+)
+diode_block_angle = 10
+diodes_right = [copy.copy(right_diode).locate(loc) for loc in locs]
+diodes_right_lower = [copy.copy(right_diode).locate(loc) for loc in locs_lower]
+diodes_r = (bd.Part()+diodes_right).rotate(bd.Axis.Z, diode_block_angle)
+diodes_rl = (bd.Part()+diodes_right_lower).rotate(bd.Axis.Z, diode_block_angle)
 
+diodes_left = [copy.copy(left_diode).locate(loc) for loc in locs]
+diodes_left_lower = [copy.copy(left_diode).locate(loc) for loc in locs_lower]
+diodes_l = (bd.Part()+diodes_left).rotate(bd.Axis.Z, -diode_block_angle)
+diodes_ll = (bd.Part()+diodes_left_lower).rotate(bd.Axis.Z, -diode_block_angle)
+# %%
+doidr = diode.rotate(bd.Axis.Z, 90)
+dbb = doidr.bounding_box().size
+locs = bd.GridLocations(
+    dbb.X*2,
+    dbb.Y*1.5,
+    5,
+    2
+    )
+locs2 = bd.GridLocations(
+    dbb.X*2,
+    dbb.Y*1.1,
+    5,
+    1
+    )
+locs3 = bd.GridLocations(
+    dbb.X*2,
+    dbb.Y*1.1,
+    3,
+    1
+    )
+pmbb = pm.bounding_box().size
+diode_group1 = bd.Part()+[copy.copy(doidr).locate(loc) for loc in locs]
+diode_group2 = bd.Part()+[copy.copy(doidr).locate(loc) for loc in locs2]
+diode_group3 = bd.Part()+[copy.copy(doidr).locate(loc) for loc in locs3]
+
+diodes = (diode_group1 
+    + diode_group2.locate(bd.Location((dbb.X,0,0))) 
+    + diode_group3.locate(bd.Location((-dbb.X,-dbb.Y*1.5,0))) 
+)
+diodes_left = (diodes
+    .rotate(bd.Axis.Z, -20)
+    .locate(pm.location*bd.Location((-pmbb.X-2,-pmbb.Y+6,1)))
+)
+diodes_right = (bd.mirror(diodes, bd.Plane.XZ)
+    .rotate(bd.Axis.Z, 180+20)
+    .locate(pm.location*bd.Location((pmbb.X+2,-pmbb.Y+6,1)))
+)
 
 show(
     part,
     # numbers,
     pm,
-    ddp.locate(pm.location*bd.Location((0,-40,1))),
-    # ds.locate(pm.location*bd.Location((0,-38,1))),
-    # ds.locate(pm.location*bd.Location((-20,-30,1))),
-    # dsm.locate(pm.location*bd.Location((20,-30,1))),
-    # dsl.locate(pm.location*bd.Location((0,-15,1))),
-    # copy.copy(dsl).locate(pm.location*bd.Location((0,-30,1))),
-    # ds.locate(pm.location*bd.Location((13,-30,1))),
-    # dsm.locate(pm.location*bd.Location((-13,-30,1))),
-    # diodes2,
+    diodes_left,
+    diodes_right,
+    # diodes2.locate(diodes.location*bd.Location((0,-doidr.bounding_box().size.Y,0))),
+    #diodes2.locate(pm.location*bd.Location((doidr.bounding_box().size.X,-33-doidr.bounding_box().size.Y*0.75,1))),
     # numbers,
     reset_camera=Camera.KEEP
 )
 # pm.export_step(__file__.replace(".py","_promicro.step"))
 # part.export_stl(__file__.replace(".py",".stl"))
+
+
 # %%
