@@ -24,7 +24,7 @@ key_locs =  {
         1: [((w*2.5, -w*1.7),0), ((w*3.7, -w*1.9),-20),((w*5, -w*2.2),-35)],
     }
 
-def shape(cut=True):
+def key_placement(cut=True):
     with bd.BuildSketch() as skt:
         with bd.Locations(*key_locs[3]):
             bd.add(col(rows=3,cut=cut))
@@ -37,18 +37,9 @@ def shape(cut=True):
 
     return skt
         
-
-
-def key_placements():
-    with bd.BuildSketch() as skt:
-        bd.add(shape(cut=True))
-        # bd.make_hull(skt.edges())
-        # bd.fillet(skt.vertices(), radius=1.5)
-    return skt.sketch
-
 def outline():
     with bd.BuildSketch() as skt:
-        bd.add(shape(cut=False))
+        bd.add(key_placement(cut=False))
         bd.offset(amount=7, kind=bd.Kind.INTERSECTION)
         bd.Rectangle(1,1) # Remove internal jibber-jabber
         vs = skt.vertices().sort_by(sort_by=bd.Axis.Y)
@@ -70,28 +61,11 @@ def outline():
         bd.make_face()
     return skt.sketch
 
-def bf():
-    skt = outline()
-    angle = 40
-    space = skt.bounding_box().size.X*1.6
+def shape(angle: float = 40, space:float = 215):
+    _outline = outline()
     with bd.BuildSketch() as ske:
-        bd.add(skt.rotate(bd.Axis.Z, -angle/2))
-        bd.add(skt
-            .mirror(mirror_plane=bd.Plane.YZ)
-            .rotate(bd.Axis.Z, angle/2)
-            .move(bd.Location((space,0,0)))
-            )
-
-    return ske.sketch
-
-def attacus():
-    # _outline = outline()
-    skt = outline()
-    angle = 40
-    space = skt.bounding_box().size.X*1.6
-    with bd.BuildSketch() as ske:
-        bd.add(skt.rotate(bd.Axis.Z, -angle/2))
-        bd.add(skt
+        bd.add(_outline.rotate(bd.Axis.Z, -angle/2))
+        bd.add(_outline
             .mirror(mirror_plane=bd.Plane.YZ)
             .rotate(bd.Axis.Z, angle/2)
             .move(bd.Location((space,0,0)))
@@ -104,8 +78,18 @@ def attacus():
         with bd.BuildLine():
             bd.Polyline(*pts, close=True)
         bd.make_face()
-        bd.add(shape(cut=True).sketch.rotate(bd.Axis.Z, -angle/2),mode=bd.Mode.SUBTRACT)
-        bd.add(shape(cut=True).sketch
+
+    return ske.sketch
+
+
+def attacus():
+    angle = 40
+    space = 215
+    with bd.BuildSketch() as ske:
+        bd.add(shape(angle, space))
+        # Cuts the keys
+        bd.add(key_placement(cut=True).sketch.rotate(bd.Axis.Z, -angle/2),mode=bd.Mode.SUBTRACT)
+        bd.add(key_placement(cut=True).sketch
             .mirror(mirror_plane=bd.Plane.YZ)
             .rotate(bd.Axis.Z, angle/2)
             .move(bd.Location((space,0,0))),
@@ -170,6 +154,50 @@ show(
     pm,
     diodes_left,
     diodes_right,
+    reset_camera=Camera.KEEP
+)
+# %%
+with bd.BuildPart() as top_case:
+    with bd.BuildSketch() as sk:
+        bd.add(shape(40,215))
+        bd.offset(amount=4, kind=bd.Kind.INTERSECTION)
+    bd.extrude(amount=15)
+
+    tcbb = top_case.part.bounding_box()
+    z_offset = tcbb.size.Z
+
+    with bd.BuildSketch() as sk:
+        bd.add(shape(40,215))
+        bd.offset(amount=1, kind=bd.Kind.INTERSECTION)
+    bd.extrude(amount=(z_offset-3), mode=bd.Mode.SUBTRACT)
+
+    with bd.BuildSketch() as sk:
+        bd.add(shape(40,215))
+        bd.offset(amount=-4, kind=bd.Kind.INTERSECTION)
+    bd.extrude(amount=(z_offset), mode=bd.Mode.SUBTRACT)
+
+    y2 = tcbb.size.Y/4
+    tcc = bd.Location(tcbb.center())*bd.Location((0,y2,z_offset/2))
+    with bd.Locations(tcc):
+        bd.Box(20,20,10,mode=bd.Mode.SUBTRACT)
+
+with bd.BuildPart() as bottom_case:
+    with bd.BuildSketch() as sk:
+        bd.add(shape(40,215))
+        bd.offset(amount=4, kind=bd.Kind.INTERSECTION)
+    bd.extrude(amount=2)
+    with bd.BuildSketch() as sk:
+        bd.add(shape(40,215))
+        bd.offset(amount=0, kind=bd.Kind.INTERSECTION)
+    bd.extrude(amount=4)
+
+show(
+    part.translate((0,0,9)),
+    top_case,
+    pm.translate((0,0,9)),
+    #bottom_case.part.translate((0,0,-4)),
+    #prt2,
+    #sk,
     reset_camera=Camera.KEEP
 )
 # pm.export_step(__file__.replace(".py","_promicro.step"))
