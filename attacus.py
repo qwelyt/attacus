@@ -34,6 +34,10 @@ def key_placement(cut=True):
                 .rotate(bd.Axis.Z, i[1])
                 .move(bd.Location(i[0]))
             )
+    print(skt.sketch.bounding_box().center())
+    sbb = skt.sketch.bounding_box()
+    centered = skt.sketch.translate((-(sbb.center().X),-(sbb.center().Y),0))
+    print(skt.sketch.bounding_box().center())
 
     return skt
         
@@ -77,9 +81,11 @@ def shape(angle: float = 40, space:float = 215):
                 pts.append(i.to_tuple())
         with bd.BuildLine():
             bd.Polyline(*pts, close=True)
-        bd.make_face()
+        #bd.make_face()
+    sbb = ske.sketch.bounding_box()
+    centered = ske.sketch.translate((-(sbb.center().X),-(sbb.center().Y),0))
 
-    return ske.sketch
+    return centered
 
 
 def attacus():
@@ -89,8 +95,7 @@ def attacus():
         bd.add(shape(angle, space))
         # Cuts the keys
         bd.add(key_placement(cut=True).sketch.rotate(bd.Axis.Z, -angle/2),mode=bd.Mode.SUBTRACT)
-        bd.add(key_placement(cut=True).sketch
-            .mirror(mirror_plane=bd.Plane.YZ)
+        bd.add(key_placement(cut=True).sketch.mirror(mirror_plane=bd.Plane.YZ)
             .rotate(bd.Axis.Z, angle/2)
             .move(bd.Location((space,0,0))),
             mode=bd.Mode.SUBTRACT
@@ -191,17 +196,20 @@ with bd.BuildPart() as bottom_case:
         bd.offset(amount=0, kind=bd.Kind.INTERSECTION)
     bd.extrude(amount=4)
 
+htc = bd.split(top_case.part, bd.Plane.YZ)
+
 show(
     part.translate((0,0,9)),
     top_case,
+    # htc,
     pm.translate((0,0,9)),
-    #bottom_case.part.translate((0,0,-4)),
+    bottom_case.part.translate((0,0,-4)),
     #prt2,
     #sk,
+    # bd.Rectangle(140,140).translate((35,-25,0)),
     reset_camera=Camera.KEEP
 )
 # pm.export_step(__file__.replace(".py","_promicro.step"))
 # part.export_stl(__file__.replace(".py",".stl"))
 
 
-# %%
