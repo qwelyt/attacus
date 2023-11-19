@@ -21,7 +21,7 @@ keycap = bd.import_step("DSA_1u.step").rotate(bd.Axis.X, 90)
 dil_socket = bd.import_step("DIL_socket_24pins.step")
 promicro = pro_micro_c.pro_micro().rotate(bd.Axis.Z, 180).move(bd.Location((0,18,1)))
 diode = diode_1n4148.diode_1n4148().rotate(bd.Axis.X, 90)
-
+#%%
 def col(thing, rows:int=3):
     _locations = bd.GridLocations(w,l,1,rows)
     cluster = [copy.copy(thing).locate(loc) for loc in _locations]
@@ -77,8 +77,11 @@ def plate():
         bd.extrude(amount=2)
     return prt.part
 
-def top_case(thickness:float=4.0, height:float=15.0):
+def top_case(thickness:float=4.0, height:float=19.0, lip_height:float=4):
     ol = outline()
+    _lip=6
+    _chamfer_amount = 5
+    _cable_space = 10
     with bd.BuildPart() as prt:
         with bd.BuildSketch() as skt:
             bd.add(ol)
@@ -87,16 +90,28 @@ def top_case(thickness:float=4.0, height:float=15.0):
 
         top = prt.faces().sort_by(bd.Axis.Z)[-1]
 
-        with bd.BuildSketch():#bd.Plane(top.location)):
+        with bd.BuildSketch():
             bd.add(ol)
             bd.offset(amount=1, kind=bd.Kind.INTERSECTION)
-        bd.extrude(amount=(height-thickness),mode=bd.Mode.SUBTRACT)
+        bd.extrude(amount=(height-thickness-lip_height),mode=bd.Mode.SUBTRACT)
 
         with bd.BuildSketch(bd.Plane(top.location)):
             bd.add(ol)
-            bd.offset(amount=-thickness, kind=bd.Kind.INTERSECTION)
+            bd.offset(amount=-_lip, kind=bd.Kind.INTERSECTION)
         bd.extrude(amount=-height,mode=bd.Mode.SUBTRACT)
-    
+        
+        top_outer_edges = prt.faces().sort_by(bd.Axis.Z)[-1].outer_wire().edges()
+        bd.chamfer(top_outer_edges, length=_chamfer_amount)
+        
+        top_outer_edges = prt.faces().sort_by(bd.Axis.Z)[-1].outer_wire().edges()
+        bd.fillet(top_outer_edges, 2)
+        
+        with bd.BuildSketch(bd.Plane(top.location)):
+            with bd.Locations(top.center()):
+                bd.Rectangle(_cable_space,80)
+        bd.extrude(amount=-(_chamfer_amount),mode=bd.Mode.SUBTRACT)
+
+
     return prt.part
 
 def bottom_case(thickness:float=4.0, height:float=4.0):
@@ -110,6 +125,12 @@ def bottom_case(thickness:float=4.0, height:float=4.0):
             bd.add(ol)
         bd.extrude(amount=height)
     return prt.part
+tc = top_case()
+show(
+   tc
+    #, plate().translate((0,0,8.8))
+    ,reset_camera=Camera.KEEP
+)
 #%%
 def diodes(alt=1):
     dbb = diode.bounding_box().size
@@ -160,19 +181,21 @@ dids2 = dids.mirror(bd.Plane.YZ)
 caps = key_locations(keycap)
 switches = key_locations(cherry_switch)
 #%%
+cntr = bd.Location(plt.center())
 pm = (promicro
-        .locate(bd.Location(plate().center()))
-        .move(bd.Location((0,18,10)))
+        .locate(cntr)
+        .move(bd.Location((0,-15,9)))
     )
 pmbb = pm.bounding_box().size
+#%%
 show(
     bc.translate((0,0,-2))
-    , plt.translate((0,0,10))
+    , plt.translate((0,0,8.8))
     , tc
-#    , switches.translate((0,0,12.2))
-#    , caps.translate((0,0,19))
+    , switches.translate((0,0,12.2))
+    , caps.translate((0,0,19))
     ,pm
-    ,dids.locate(pm.location).translate((-pmbb.X,-pmbb.Y,1))
-    ,dids2.locate(pm.location).translate((pmbb.X,-pmbb.Y,1))
+    ,dids.locate(cntr).translate((-pmbb.X-1,-12,10.5))
+    ,dids2.locate(cntr).translate((pmbb.X+1,-12,10.5))
     ,reset_camera=Camera.KEEP
 )
