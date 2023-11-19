@@ -5,211 +5,174 @@ set_port(3939)
 import build123d as bd
 import pro_micro_c
 import diode_1n4148
-import copy
+import copy, itertools, functools
+from typing import TypeVar
+T = TypeVar('T')
 w = 19.05
 l = 19.05
 cut_size = 14.07
-
-def col(rows=3, cut=True):
-    with bd.BuildSketch() as skt:
-        with bd.GridLocations(w,l,1,rows):
-            if cut:
-                bd.Rectangle(cut_size,cut_size)
-            else:
-                bd.Rectangle(w,l)
-    return skt.sketch
-
 key_locs =  {
         3: [(0,0),(w,l/3), (w*2,l/1.4),(w*3,l/2),(w*4,l/3)],
         1: [((w*2.5, -w*1.7),0), ((w*3.7, -w*1.9),-20),((w*5, -w*2.2),-35)],
     }
 
-def key_placement(cut=True):
-    with bd.BuildSketch() as skt:
-        with bd.Locations(*key_locs[3]):
-            bd.add(col(rows=3,cut=cut))
-        
-        for i in key_locs[1]:
-            bd.add(col(rows=1, cut=cut)
-                .rotate(bd.Axis.Z, i[1])
-                .move(bd.Location(i[0]))
-            )
-    print(skt.sketch.bounding_box().center())
-    sbb = skt.sketch.bounding_box()
-    centered = skt.sketch.translate((-(sbb.center().X),-(sbb.center().Y),0))
-    print(skt.sketch.bounding_box().center())
+cherry_switch = bd.import_step("cherry_mx.stp").rotate(bd.Axis.X, 90).translate((0,-1,0))
+keycap = bd.import_step("DSA_1u.step").rotate(bd.Axis.X, 90)
+dil_socket = bd.import_step("DIL_socket_24pins.step")
+promicro = pro_micro_c.pro_micro().rotate(bd.Axis.Z, 180).move(bd.Location((0,18,1)))
+diode = diode_1n4148.diode_1n4148().rotate(bd.Axis.X, 90)
 
-    return skt
-        
+def col(thing, rows:int=3):
+    _locations = bd.GridLocations(w,l,1,rows)
+    cluster = [copy.copy(thing).locate(loc) for loc in _locations]
+    return cluster
+
+def key_locations_half(thing:T)->T:
+    col_three = col(thing, rows=3)
+    col_one = col(thing, rows=1)
+    three_col = None
+    one_col = None
+    t = None
+    if isinstance(thing, bd.Sketch):
+        three_col = bd.Sketch()+col_three
+        one_col = bd.Sketch()+col_one
+        t = bd.Sketch()
+    elif isinstance(thing, bd.Part):
+        three_col = bd.Part()+col_three
+        one_col = bd.Part()+col_one
+        t = bd.Part()
+    elif isinstance(thing, bd.Compound):
+        three_col = bd.Compound()+col_three
+        one_col = bd.Compound()+col_one
+        t = bd.Compound()
+    threes = [copy.copy(three_col).locate(bd.Location(loc)) for loc in key_locs[3]]
+    ones = [copy.copy(one_col).rotate(bd.Axis.Z,loc[1]).locate(bd.Location(loc[0])) for loc in key_locs[1]]
+
+    return t+threes+ones
+
+def key_locations(thing,space=220):
+    kp = key_locations_half(thing).rotate(bd.Axis.Z, -20)
+    kpbb = kp.bounding_box().size
+    kpm = kp.mirror(mirror_plane=bd.Plane.YZ).translate((space,0,0))
+    return kp+kpm
+
 def outline():
+    kl = key_locations(bd.Rectangle(w,l))
     with bd.BuildSketch() as skt:
-        bd.add(key_placement(cut=False))
-        bd.offset(amount=7, kind=bd.Kind.INTERSECTION)
-        bd.Rectangle(1,1) # Remove internal jibber-jabber
-        vs = skt.vertices().sort_by(sort_by=bd.Axis.Y)
-        with bd.BuildLine():
-            bd.Polyline(
-                vs[0].to_tuple(),
-                vs[1].to_tuple(),
-                vs[2].to_tuple(),
-                close=True
-            )
-        bd.make_face()
-        with bd.BuildLine():
-            bd.Polyline(
-                vs[5].to_tuple(),
-                vs[10].to_tuple(),
-                vs[16].to_tuple(),
-                close=True
-            )
-        bd.make_face()
-    return skt.sketch
+        bd.add(kl)
+        bd.offset(amount=7, kind=bd.Kind.INTERSECTION, mode=bd.Mode.ADD)
 
-def shape(angle: float = 40, space:float = 215):
-    _outline = outline()
-    with bd.BuildSketch() as ske:
-        bd.add(_outline.rotate(bd.Axis.Z, -angle/2))
-        bd.add(_outline
-            .mirror(mirror_plane=bd.Plane.YZ)
-            .rotate(bd.Axis.Z, angle/2)
-            .move(bd.Location((space,0,0)))
-            )
-        vs = ske.vertices().sort_by(sort_by=bd.Axis.X)
-        pts = []
-        for idx,i in enumerate(vs):
-            if idx in [14,23,18,19]:
-                pts.append(i.to_tuple())
-        with bd.BuildLine():
-            bd.Polyline(*pts, close=True)
-        #bd.make_face()
-    sbb = ske.sketch.bounding_box()
-    centered = ske.sketch.translate((-(sbb.center().X),-(sbb.center().Y),0))
+    vertecies = skt.vertices().sort_by(bd.Axis.Y)
+    pts = [vertecies[i] for i in [0,1,2,3,22,23]]
+    wires = [bd.Line(pair[0], pair[1]) for pair in itertools.combinations(pts,2)]
+    skt=skt.sketch+bd.make_hull(wires)
+    return skt
 
-    return centered
-
-
-def attacus():
-    angle = 40
-    space = 215
-    with bd.BuildSketch() as ske:
-        bd.add(shape(angle, space))
-        # Cuts the keys
-        bd.add(key_placement(cut=True).sketch.rotate(bd.Axis.Z, -angle/2),mode=bd.Mode.SUBTRACT)
-        bd.add(key_placement(cut=True).sketch.mirror(mirror_plane=bd.Plane.YZ)
-            .rotate(bd.Axis.Z, angle/2)
-            .move(bd.Location((space,0,0))),
-            mode=bd.Mode.SUBTRACT
-            )
-    
+def plate():
+    ol = outline()
     with bd.BuildPart() as prt:
-        bd.add(ske)
+        with bd.BuildSketch() as skt:
+            bd.add(ol)
+            bd.add(key_locations(bd.Rectangle(cut_size, cut_size)), mode=bd.Mode.SUBTRACT)
         bd.extrude(amount=2)
     return prt.part
 
+def top_case(thickness:float=4.0, height:float=15.0):
+    ol = outline()
+    with bd.BuildPart() as prt:
+        with bd.BuildSketch() as skt:
+            bd.add(ol)
+            bd.offset(amount=thickness, kind=bd.Kind.INTERSECTION)
+        bd.extrude(amount=height)
 
+        top = prt.faces().sort_by(bd.Axis.Z)[-1]
 
-part = attacus()
-# numbers = [bd.Text(str(idx), font_size=5).move(bd.Location(i.to_tuple())) for idx,i in enumerate(vs)]
+        with bd.BuildSketch():#bd.Plane(top.location)):
+            bd.add(ol)
+            bd.offset(amount=1, kind=bd.Kind.INTERSECTION)
+        bd.extrude(amount=(height-thickness),mode=bd.Mode.SUBTRACT)
+
+        with bd.BuildSketch(bd.Plane(top.location)):
+            bd.add(ol)
+            bd.offset(amount=-thickness, kind=bd.Kind.INTERSECTION)
+        bd.extrude(amount=-height,mode=bd.Mode.SUBTRACT)
+    
+    return prt.part
+
+def bottom_case(thickness:float=4.0, height:float=4.0):
+    ol = outline()
+    with bd.BuildPart() as prt:
+        with bd.BuildSketch():
+            bd.add(ol)
+            bd.offset(amount=thickness, kind=bd.Kind.INTERSECTION)
+        bd.extrude(amount=height/2)
+        with bd.BuildSketch():
+            bd.add(ol)
+        bd.extrude(amount=height)
+    return prt.part
+#%%
+def diodes(alt=1):
+    dbb = diode.bounding_box().size
+    if alt==1:
+        grid1 = bd.GridLocations(dbb.X+1, (dbb.Y)*1.5, 5,2)
+        grid2 = bd.GridLocations(dbb.X+1, (dbb.Y)*2, 5,1)
+        grid3 = bd.GridLocations(dbb.X+1, (dbb.Y)*2, 3,1)
+        diode_group1 = bd.Part()+[copy.copy(diode).locate(loc) for loc in grid1]
+        diode_group2 = bd.Part()+[copy.copy(diode).locate(loc) for loc in grid2]
+        diode_group3 = bd.Part()+[copy.copy(diode).locate(loc) for loc in grid3]
+        return (diode_group1
+                +diode_group2.translate(((dbb.X+1)/2,0,0))
+                +diode_group3.translate(((dbb.X+1)/2,-dbb.Y*1.5,0))
+        )
+    elif alt==2:
+        grid = bd.GridLocations(dbb.X+1, dbb.Y+1, 5,4)
+        return bd.Part()+[copy.copy(diode).locate(loc) for loc in grid]
+    elif alt==3:
+        grid = bd.GridLocations(dbb.X+1, dbb.Y+1, 1,3)
+        group = bd.Part()+[copy.copy(diode).locate(loc) for loc in grid]
+        dds = [copy.copy(group).locate(bd.Location(((dbb.X+1)*i, -1*i, 0))) for i in range(5)]
+        return bd.Part()+dds
+    elif alt==4:
+        grid = bd.GridLocations(dbb.X+1, dbb.Y+1, 1,5)
+        group = bd.Part()+[copy.copy(diode).locate(loc) for loc in grid]
+        dds = [copy.copy(group).locate(bd.Location(((dbb.X+1)*i, -1*i, 0))) for i in range(3)]
+        return bd.Part()+dds
+    elif alt==5:
+        polar = bd.PolarLocations(dbb.Y*0.55, 5, 0)
+        group = bd.Part()+[copy.copy(diode.rotate(bd.Axis.Z, 90)).locate(loc) for loc in polar]
+        return group
+    elif alt==6:
+        dide = diode.rotate(bd.Axis.Z, 90)
+        dbb = dide.bounding_box().size
+        grid = bd.GridLocations(dbb.X+1, (dbb.Y+1)*3, 1,6)
+        group = bd.Part()+[copy.copy(dide).locate(loc) for loc in grid]
+        dds = [copy.copy(group).locate(bd.Location((1*i, (dbb.Y+1)*i, 0))) for i in range(3)]
+        return bd.Part()+dds
+
+show(diodes(6),reset_camera=Camera.KEEP)
 # %%
-# numbers = [bd.Text(str(idx), font_size=5).move(bd.Location(i.to_tuple())) for idx,i in enumerate(vs)]
-pm = pro_micro_c.pro_micro().rotate(bd.Axis.Z, 180).move(bd.Location(part.bounding_box().center().to_tuple())*bd.Location((0,18,1)))
-diode = diode_1n4148.diode_1n4148().rotate(bd.Axis.X, 90).rotate(bd.Axis.Z, 90)
-# %%
-doidr = diode.rotate(bd.Axis.Z, 90)
-dbb = doidr.bounding_box().size
-locs = bd.GridLocations(
-    dbb.X*2,
-    dbb.Y*1.5,
-    5,
-    2
-    )
-locs2 = bd.GridLocations(
-    dbb.X*2,
-    dbb.Y*1.1,
-    5,
-    1
-    )
-locs3 = bd.GridLocations(
-    dbb.X*2,
-    dbb.Y*1.1,
-    3,
-    1
+tc = top_case()
+bc = bottom_case()
+plt = plate()
+dids = diodes(6)
+dids2 = dids.mirror(bd.Plane.YZ)
+#%%
+caps = key_locations(keycap)
+switches = key_locations(cherry_switch)
+#%%
+pm = (promicro
+        .locate(bd.Location(plate().center()))
+        .move(bd.Location((0,18,10)))
     )
 pmbb = pm.bounding_box().size
-diode_group1 = bd.Part()+[copy.copy(doidr).locate(loc) for loc in locs]
-diode_group2 = bd.Part()+[copy.copy(doidr).locate(loc) for loc in locs2]
-diode_group3 = bd.Part()+[copy.copy(doidr).locate(loc) for loc in locs3]
-
-diodes = (diode_group1 
-    + diode_group2.locate(bd.Location((dbb.X,0,0))) 
-    + diode_group3.locate(bd.Location((-dbb.X,-dbb.Y*1.5,0))) 
-)
-diodes_left = (diodes
-    .rotate(bd.Axis.Z, -20)
-    .locate(pm.location*bd.Location((-pmbb.X-2,-pmbb.Y+6,1)))
-)
-diodes_right = (bd.mirror(diodes, bd.Plane.XZ)
-    .rotate(bd.Axis.Z, 180+20)
-    .locate(pm.location*bd.Location((pmbb.X+2,-pmbb.Y+6,1)))
-)
-
 show(
-    part,
-    # numbers,
-    pm,
-    diodes_left,
-    diodes_right,
-    reset_camera=Camera.KEEP
+    bc.translate((0,0,-2))
+    , plt.translate((0,0,10))
+    , tc
+#    , switches.translate((0,0,12.2))
+#    , caps.translate((0,0,19))
+    ,pm
+    ,dids.locate(pm.location).translate((-pmbb.X,-pmbb.Y,1))
+    ,dids2.locate(pm.location).translate((pmbb.X,-pmbb.Y,1))
+    ,reset_camera=Camera.KEEP
 )
-# %%
-with bd.BuildPart() as top_case:
-    with bd.BuildSketch() as sk:
-        bd.add(shape(40,215))
-        bd.offset(amount=4, kind=bd.Kind.INTERSECTION)
-    bd.extrude(amount=15)
-
-    tcbb = top_case.part.bounding_box()
-    z_offset = tcbb.size.Z
-
-    with bd.BuildSketch() as sk:
-        bd.add(shape(40,215))
-        bd.offset(amount=1, kind=bd.Kind.INTERSECTION)
-    bd.extrude(amount=(z_offset-3), mode=bd.Mode.SUBTRACT)
-
-    with bd.BuildSketch() as sk:
-        bd.add(shape(40,215))
-        bd.offset(amount=-4, kind=bd.Kind.INTERSECTION)
-    bd.extrude(amount=(z_offset), mode=bd.Mode.SUBTRACT)
-
-    y2 = tcbb.size.Y/4
-    tcc = bd.Location(tcbb.center())*bd.Location((0,y2,z_offset/2))
-    with bd.Locations(tcc):
-        bd.Box(20,20,10,mode=bd.Mode.SUBTRACT)
-
-with bd.BuildPart() as bottom_case:
-    with bd.BuildSketch() as sk:
-        bd.add(shape(40,215))
-        bd.offset(amount=4, kind=bd.Kind.INTERSECTION)
-    bd.extrude(amount=2)
-    with bd.BuildSketch() as sk:
-        bd.add(shape(40,215))
-        bd.offset(amount=0, kind=bd.Kind.INTERSECTION)
-    bd.extrude(amount=4)
-
-htc = bd.split(top_case.part, bd.Plane.YZ)
-
-show(
-    part.translate((0,0,9)),
-    top_case,
-    # htc,
-    pm.translate((0,0,9)),
-    bottom_case.part.translate((0,0,-4)),
-    #prt2,
-    #sk,
-    # bd.Rectangle(140,140).translate((35,-25,0)),
-    reset_camera=Camera.KEEP
-)
-# pm.export_step(__file__.replace(".py","_promicro.step"))
-# part.export_stl(__file__.replace(".py",".stl"))
-
-
