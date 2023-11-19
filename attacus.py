@@ -77,7 +77,7 @@ def plate():
         bd.extrude(amount=2)
     return prt.part
 
-def top_case(thickness:float=4.0, height:float=19.0, lip_height:float=4):
+def top_case(thickness:float=4.0, height:float=18.0, lip_height:float=4):
     ol = outline()
     _lip=6
     _chamfer_amount = 5
@@ -105,7 +105,7 @@ def top_case(thickness:float=4.0, height:float=19.0, lip_height:float=4):
         
         top_outer_edges = prt.faces().sort_by(bd.Axis.Z)[-1].outer_wire().edges()
         bd.fillet(top_outer_edges, 2)
-        
+
         with bd.BuildSketch(bd.Plane(top.location)):
             with bd.Locations(top.center()):
                 bd.Rectangle(_cable_space,80)
@@ -192,8 +192,8 @@ show(
     bc.translate((0,0,-2))
     , plt.translate((0,0,8.8))
     , tc
-    , switches.translate((0,0,12.2))
-    , caps.translate((0,0,19))
+    , switches.translate((0,0,11))
+    , caps.translate((0,0,17.5))
     ,pm
     ,dids.locate(cntr).translate((-pmbb.X-1,-12,10.5))
     ,dids2.locate(cntr).translate((pmbb.X+1,-12,10.5))
