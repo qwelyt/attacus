@@ -16,8 +16,8 @@ key_locs =  {
         1: [((w*2.5, -w*1.7),0), ((w*3.7, -w*1.9),-20),((w*5, -w*2.2),-35)],
     }
 
-cherry_switch = bd.import_step("cherry_mx.stp").rotate(bd.Axis.X, 90).translate((0,-1,0))
-keycap = bd.import_step("DSA_1u.step").rotate(bd.Axis.X, 90)
+cherry_switch = bd.import_step("cherry_mx.stp").rotate(bd.Axis.X, 90).move(bd.Location((0,-2,2.2)))
+keycap = bd.import_step("DSA_1u.step").rotate(bd.Axis.X, 90).move(bd.Location((0,0,8.7)))
 dil_socket = bd.import_step("DIL_socket_24pins.step")
 promicro = pro_micro_c.pro_micro().rotate(bd.Axis.Z, 180).move(bd.Location((0,18,1)))
 diode = diode_1n4148.diode_1n4148().rotate(bd.Axis.X, 90)
@@ -77,7 +77,7 @@ def plate():
         bd.extrude(amount=2)
     return prt.part
 
-def top_case(thickness:float=4.0, height:float=18.0, lip_height:float=4):
+def top_case(thickness:float=4.0, height:float=20.0, lip_height:float=4):
     ol = outline()
     _lip=6
     _chamfer_amount = 5
@@ -123,14 +123,31 @@ def bottom_case(thickness:float=4.0, height:float=4.0):
         bd.extrude(amount=height/2)
         with bd.BuildSketch():
             bd.add(ol)
+            # bd.offset(amount=-2, kind=bd.Kind.INTERSECTION)
+            bd.offset(amount=-6, kind=bd.Kind.INTERSECTION, mode=bd.Mode.SUBTRACT)
         bd.extrude(amount=height)
     return prt.part
 tc = top_case()
+bc = bottom_case()
 show(
    tc
+   , bc
     #, plate().translate((0,0,8.8))
     ,reset_camera=Camera.KEEP
 )
+#%%
+ol = outline()
+with bd.BuildPart() as p:
+    with bd.BuildSketch() as ks:
+        bd.add(ol)
+        bd.offset(amount=-2, kind=bd.Kind.INTERSECTION)
+        bd.offset(amount=-2, kind=bd.Kind.INTERSECTION, mode=bd.Mode.SUBTRACT)
+
+    bd.extrude(amount=4)
+
+
+show(ol,p.part.translate((0,0,1))
+,reset_camera=Camera.KEEP)
 #%%
 def diodes(alt=1):
     dbb = diode.bounding_box().size
@@ -170,32 +187,33 @@ def diodes(alt=1):
         dds = [copy.copy(group).locate(bd.Location((1*i, (dbb.Y+1)*i, 0))) for i in range(3)]
         return bd.Part()+dds
 
-show(diodes(6),reset_camera=Camera.KEEP)
 # %%
 tc = top_case()
+tcbb = tc.bounding_box().size
 bc = bottom_case()
-plt = plate()
+plt = plate().move(bd.Location((0,0,tcbb.Z-8-2)))
 dids = diodes(6)
 dids2 = dids.mirror(bd.Plane.YZ)
 #%%
 caps = key_locations(keycap)
 switches = key_locations(cherry_switch)
 #%%
+pltbb = plt.bounding_box().size
 cntr = bd.Location(plt.center())
 pm = (promicro
         .locate(cntr)
-        .move(bd.Location((0,-15,9)))
+        .move(bd.Location((0,-15,pltbb.Z)))
     )
 pmbb = pm.bounding_box().size
 #%%
 show(
     bc.translate((0,0,-2))
-    , plt.translate((0,0,8.8))
+    , plt
     , tc
-    , switches.translate((0,0,11))
-    , caps.translate((0,0,17.5))
+    , switches.translate((0,-1,plt.location.position.Z+pltbb.Z))
+    , caps.translate((0,0,plt.location.position.Z+pltbb.Z+cherry_switch.bounding_box().size.Z/3+0.5))
     ,pm
-    ,dids.locate(cntr).translate((-pmbb.X-1,-12,10.5))
-    ,dids2.locate(cntr).translate((pmbb.X+1,-12,10.5))
+    ,dids.locate(cntr).translate((-pmbb.X-1,-12,pmbb.Z-1))
+    ,dids2.locate(cntr).translate((pmbb.X+1,-12,pmbb.Z-1))
     ,reset_camera=Camera.KEEP
 )
