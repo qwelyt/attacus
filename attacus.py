@@ -186,7 +186,21 @@ def diodes(alt=1):
         group = bd.Part()+[copy.copy(dide).locate(loc) for loc in grid]
         dds = [copy.copy(group).locate(bd.Location((1*i, (dbb.Y+1)*i, 0))) for i in range(3)]
         return bd.Part()+dds
-
+#%%
+with bd.BuildPart() as rods:
+    with bd.BuildSketch():
+        with bd.Locations((0,2.24)):
+            with bd.GridLocations(16, 2.54, 2, 12):
+                bd.Circle(radius=0.55/2)
+    bd.extrude(amount=20)
+        
+rods = rods.part.locate(bd.Location(promicro.center())).move(bd.Location((0,-2.54*2,-10)))
+show(
+    promicro
+    #,dil_socket
+    ,rods
+    ,reset_camera=Camera.KEEP
+)
 # %%
 tc = top_case()
 tcbb = tc.bounding_box().size
@@ -202,18 +216,29 @@ pltbb = plt.bounding_box().size
 cntr = bd.Location(plt.center())
 pm = (promicro
         .locate(cntr)
-        .move(bd.Location((0,-15,pltbb.Z)))
+        .move(bd.Location((0,-15,pltbb.Z/2)))
     )
 pmbb = pm.bounding_box().size
 #%%
+diodes_left = dids.locate(cntr).move( bd.Location((-pmbb.X-1,-12,pltbb.Z)))
+diodes_right =dids2.locate(cntr).move(bd.Location((pmbb.X+1,-12,pltbb.Z)))
+pm_pins = rods.locate(bd.Location(pm.center())).move(bd.Location((0,-2.54*2,-10)))
+#%%
+plt_with_holes = plt-diodes_left-diodes_right-pm_pins
+#%%
 show(
-    bc.translate((0,0,-2))
-    , plt
-    , tc
-    , switches.translate((0,-1,plt.location.position.Z+pltbb.Z))
-    , caps.translate((0,0,plt.location.position.Z+pltbb.Z+cherry_switch.bounding_box().size.Z/3+0.5))
-    ,pm
-    ,dids.locate(cntr).translate((-pmbb.X-1,-12,pmbb.Z-1))
-    ,dids2.locate(cntr).translate((pmbb.X+1,-12,pmbb.Z-1))
+    #bc.translate((0,0,-2))
+     plt_with_holes
+    #, tc
+    #, switches.translate((0,-1,plt.location.position.Z+pltbb.Z))
+    #, caps.translate((0,0,plt.location.position.Z+pltbb.Z+cherry_switch.bounding_box().size.Z/3+0.5))
+    #,pm
+    # ,dil_socket.locate(bd.Location(pm.center()))
+    #,diodes_left
+    #,diodes_right
     ,reset_camera=Camera.KEEP
 )
+#%%
+plt_with_holes.export_stl(__file__.replace(".py","_plate.stl"))
+#%%
+tc.export_stl(__file__.replace(".py","_top_plate.stl"))
