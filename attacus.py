@@ -81,14 +81,20 @@ def plate(thickness=2):
         bd.add(bd.Rectangle(cut_size, cut_size))
 
     with bd.BuildPart() as prt:
-        with bd.BuildSketch():
-            bd.add(ol)
-            bd.add(key_locations(cross.sketch), mode=bd.Mode.SUBTRACT)
-        bd.extrude(amount=thickness-1)
-        with bd.BuildSketch(bd.Location((0,0,prt.part.bounding_box().size.Z))):
-            bd.add(ol)
-            bd.add(key_locations(bd.Rectangle(cut_size, cut_size)), mode=bd.Mode.SUBTRACT)
-        bd.extrude(amount=1)
+        if thickness>1:
+            with bd.BuildSketch():
+                bd.add(ol)
+                bd.add(key_locations(cross.sketch), mode=bd.Mode.SUBTRACT)
+            bd.extrude(amount=thickness-1)
+            with bd.BuildSketch(bd.Location((0,0,prt.part.bounding_box().size.Z))):
+                bd.add(ol)
+                bd.add(key_locations(bd.Rectangle(cut_size, cut_size)), mode=bd.Mode.SUBTRACT)
+            bd.extrude(amount=1)
+        else:
+            with bd.BuildSketch():
+                bd.add(ol)
+                bd.add(key_locations(bd.Rectangle(cut_size, cut_size)), mode=bd.Mode.SUBTRACT)
+            bd.extrude(amount=thickness)
     return prt.part
 
 def top_case(thickness:float=4.0, height:float=20.0, lip_height:float=4):
@@ -179,6 +185,26 @@ def diodes(alt=1,rows=3,groups=6):
         group = bd.Part()+[copy.copy(dide).locate(loc) for loc in grid]
         dds = [copy.copy(group).locate(bd.Location((1*i, (dbb.Y+1)*i, 0))) for i in range(rows)]
         return bd.Part()+dds
+
+def chigiri_tsugi(extra_x=0,offset_amount = 0,thickness=2):
+    with bd.BuildPart() as bp:
+        with bd.BuildSketch() as bone:
+            with bd.BuildLine() as ln:
+                bd.Polyline(
+                    (0,0)
+                    ,(0,2)
+                    ,(-2-extra_x,2)
+                    ,(-4-extra_x,4)
+                    ,(-8-extra_x,4)
+                    ,(-8-extra_x,0)
+                    ,close=True
+                )
+                bd.mirror(ln.line, about=bd.Plane.YZ)
+            bd.make_face()
+            bd.mirror(bone.sketch, about=bd.Plane.XZ)
+            bd.offset(amount=offset_amount,kind=bd.Kind.INTERSECTION)
+        bd.extrude(amount=(thickness+offset_amount)/2,both=True)
+    return bp.part
 #%%
 with bd.BuildPart() as rods:
     with bd.BuildSketch():
@@ -198,7 +224,7 @@ rods = rods.part.locate(bd.Location(promicro.center())).move(bd.Location((0,-2.5
 tc = top_case()
 tcbb = tc.bounding_box().size
 bc = bottom_case()
-plt = plate().move(bd.Location((0,0,tcbb.Z-8-2)))
+plt = plate(1).move(bd.Location((0,0,tcbb.Z-8-2)))
 dids = diodes(6)
 dids2 = dids.mirror(bd.Plane.YZ)
 #%%
@@ -216,19 +242,37 @@ pmbb = pm.bounding_box().size
 diodes_left = dids.locate(cntr).move( bd.Location((-pmbb.X-1,-12,pltbb.Z)))
 diodes_right =dids2.locate(cntr).move(bd.Location((pmbb.X+1,-12,pltbb.Z)))
 pm_pins = rods.locate(bd.Location(pm.center())).move(bd.Location((0,-2.54*2,-10)))
+ct = chigiri_tsugi(offset_amount=0.3).locate(bd.Location(plt.center())*bd.Location((0,0,-1)))
+ct_top = copy.copy(ct).move(bd.Location((0,20,0)))
+ct_bottom = copy.copy(ct).move(bd.Location((0,-45,0)))
 #%%
-plt_with_holes = plt-diodes_left-diodes_right-pm_pins
+plt_with_holes = plt-diodes_left-diodes_right-pm_pins-ct_top-ct_bottom
+#%%
+chigi = chigiri_tsugi(extra_x=0.1, thickness=1).locate(bd.Location(plt.center())*bd.Location((0,0,-0.5)))
+chigi_top = copy.copy(chigi).move(bd.Location((0,20,0)))
+chigiri_bottom = copy.copy(chigi).move(bd.Location((0,-45,0)))
+chigiri_complete = chigi_top+chigiri_bottom
+chibb = chigiri_complete.bounding_box().size
+skirt = bd.Box(chibb.X+7, chibb.Y+25, 0.2).locate(bd.Location(chigiri_complete.center())*bd.Location((0,-3,-chibb.Z/2)))
+chicskirt = chigiri_complete+skirt
+show(
+    chicskirt,
+    plt_with_holes
+)
+chicskirt.export_stl(__file__.replace(".py","_plate_connector.stl"))
 #%%
 show(
     #bc.translate((0,0,-2))
-    plt_with_holes#.split(bd.Plane(bd.Plane.X))
+   # plt_with_holes#.split(bd.Plane(bd.Plane.X))
     #, tc
     #, switches.translate((0,-1,plt.location.position.Z+pltbb.Z))
     #, caps.translate((0,0,plt.location.position.Z+pltbb.Z+cherry_switch.bounding_box().size.Z/3+0.5))
-    ,pm
+    #,pm
     # ,dil_socket.locate(bd.Location(pm.center()))
-    ,diodes_left
-    ,diodes_right
+    #,diodes_left
+    #,diodes_right
+    ct_top
+    ,ct_bottom
     ,reset_camera=Camera.KEEP
 )
 #%%
@@ -244,47 +288,109 @@ show(
     #bd.split(plt_with_holes, bd.Plane(plt_with_holes.faces().sort_by(bd.Axis.X)[-1]))#.offset(plt_with_holes.bounding_box().size.X/2))
     #plt_with_holes
     plate_right
-    ,plate_left
-    ,bone
+    #,plate_left
+    #,bone
     ,reset_camera=Camera.KEEP
 
 )
+plate_left.export_stl(__file__.replace(".py", "_plate_left.stl"))
+plate_right.export_stl(__file__.replace(".py", "_plate_right.stl"))
 
 #%%
-with bd.BuildPart() as bone_part:
-    with bd.BuildSketch() as bone:
-        with bd.BuildLine() as ln:
-            bd.Polyline(
-                (0,0)
-                ,(0,2)
-                ,(-2,2)
-                ,(-4,4)
-                ,(-8,4)
-                ,(-8,0)
-                ,close=True
-            )
-            bd.mirror(ln.line, about=bd.Plane.YZ)
-        bd.make_face()
-        bd.mirror(bone.sketch, about=bd.Plane.XZ)
-    bd.extrude(amount=2)
+    
+show(
+    chigiri_tsugi(0.1),
+    chigiri_tsugi(offset_amount=0.2),
+    #bd.offset(bone_part.part, amount=0.3)
+)
 #%%
 e = plate_left.edges().sort_by(bd.Axis.X)[-1]
 print(plt_with_holes.center())
 show(
-    bone_part.part.translate(plt_with_holes.center()).translate((0,10,0))
-    ,bone_part.part.translate(plt_with_holes.center()).translate((0,-50,0))
+    chigiri_tsugi(offset_amount=0.3).translate(plt_with_holes.center()).translate((0,10,0))
+    ,chigiri_tsugi(offset_amount=0.3).translate(plt_with_holes.center()).translate((0,-50,0))
     ,plate_left
+    ,plate_right
     ,reset_camera=Camera.KEEP
 
 )
 #%%
-bx = bd.extrude(bd.Rectangle(15,20), amount=2).locate(bd.Location((-15/2,0,0)))-bd.offset(bone_part.part, amount=0.1)
+bx = bd.Box(15,20,1).locate(bd.Location((-15/2,0,0)))-chigiri_tsugi(offset_amount=0.3).move(bd.Location((0,0,1)))
+chigiri = chigiri_tsugi(extra_x=0.1, thickness=0.8)
+cs = chigiri.bounding_box().size
+mantle = bd.Box(cs.X+2, 20, 0.2).locate(bd.Location((0,0,cs.Z/2)))
+chigiri_mantle=chigiri+mantle
 show(
-    #bone_part,
-    bx#.translate((-15/2,0,0))
+    chigiri_mantle,
+    bx.translate((0,0,-0.5))
 )
 #%%
 import os
 print(os.getcwd())
 bx.export_stl(os.getcwd()+"/joinery_plate.stl")
-bone_part.part.export_stl(os.getcwd()+"/joinery_joint.stl")
+chigiri_mantle.export_stl(os.getcwd()+"/joinery_joint.stl")
+#%%
+
+locs = bd.GridLocations(10,20,2,1)
+bars = bd.Part()+[bd.Box(2,16,1).located(loc*bd.Location((0,0,0.3))) for loc in locs]
+c = bd.Box(12,16,0.5)+bars
+bo = bd.Box(14.8,20,2).locate(bd.Location((-15/2,0,1)))-bd.offset(c, amount=0.2,kind=bd.Kind.INTERSECTION)
+#kpm = kp.mirror(mirror_plane=bd.Plane.YZ).translate((space,0,0))
+show(c,bo#,bo.mirror(mirror_plane=bd.Plane.YZ)
+)
+bo.export_stl(os.getcwd()+"/joinery_plate_bar.stl")
+c.export_stl(os.getcwd()+"/joinery_joint_bar.stl")
+
+#%%
+def tuple_math(t1,t2, op) -> tuple:
+    res = []
+    for i in range(len(t1)):
+        res.append(op(t1[i],t2[i]))
+    return tuple(res)
+#%%
+ol = outline()
+olv = ol.vertices().sort_by(bd.Axis.X)
+numbers = [bd.Text(str(idx), font_size=8).move(bd.Location(i.to_tuple())) for idx,i in enumerate(olv)]
+wanted = [numbers[0], numbers[1], numbers[-1], numbers[-2]]
+#middle = [numbers[9], numbers[26], numbers[15], numbers[20]]
+middle = [numbers[17], numbers[18], numbers[14], numbers[21]]
+print(olv[0]/bd.Vertex((2,1,1)))
+#%%
+import operator
+a = olv[17].to_tuple()
+b = olv[18].to_tuple()
+c = tuple_math(b,a, operator.sub)
+d = tuple_math(a,c, operator.add)
+e = tuple_math(c, (2,1,1), operator.truediv)
+f = tuple_math(a,e, operator.add)
+pints = [
+("A",a)
+, ("B",b )
+, ("C",c )
+, ("D",d )
+, ("E",e )
+, ("F",f )
+
+]
+for i in pints:
+    print(i)
+texts = [bd.Text(i[0], font_size=8).move(bd.Location(i[1])) for i in pints]
+show(
+    ol,
+    texts
+)
+#%%
+topmid = tuple_math(olv[17].to_tuple(), (tuple_math(olv[18].to_tuple(), olv[17].to_tuple(), operator.sub)), operator.add)
+print(topmid)
+midpoint = bd.Text("MID", font_size=8).move(bd.Location(topmid))
+#%%
+show(
+    #tc,
+    #bc.translate((0,0,-4)),
+    #bd.Cylinder(5/2,5),
+    ol,
+    #numbers
+    wanted,
+    middle,
+    midpoint,
+    )
