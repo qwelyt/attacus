@@ -17,8 +17,8 @@ w = 19.05
 l = 19.05
 cut_size = 14.07
 key_locs =  {
-        3: [(0,0),(w,l/3), (w*2,l/1.4),(w*3,l/2),(w*4,l/3)],
-        1: [((w*2.5, -w*1.7),0), ((w*3.7, -w*1.9),-20),((w*5, -w*2.2),-35)],
+        3: [(0,-l/4),(w,l/3), (w*2,l/1.4),(w*3,l/2),(w*4,l/3)],
+        1: [((w*2.5, -w*1.7),0), ((w*3.77, -w*1.9),-20),((w*5, -w*2.2),-35)],
     }
 
 cherry_switch = bd.import_step("cherry_mx.stp").rotate(bd.Axis.X, 90).move(bd.Location((0,-2,2.2)))
@@ -75,6 +75,11 @@ def outline():
 
 def plate(thickness=2):
     ol = outline()
+    flex_gap = 1.5
+    with bd.BuildSketch() as flex_cut:
+        bd.Rectangle(w+flex_gap/2,l)
+        bd.Rectangle(w-flex_gap/2,l, mode=bd.Mode.SUBTRACT)
+
     with bd.BuildSketch() as cross:
         bd.add(bd.Rectangle(cut_size+2,4))
         bd.add(bd.Rectangle(4, cut_size+2))
@@ -94,6 +99,7 @@ def plate(thickness=2):
             with bd.BuildSketch():
                 bd.add(ol)
                 bd.add(key_locations(bd.Rectangle(cut_size, cut_size)), mode=bd.Mode.SUBTRACT)
+                bd.add(key_locations(flex_cut.sketch), mode=bd.Mode.SUBTRACT)
             bd.extrude(amount=thickness)
     return prt.part
 
@@ -248,7 +254,7 @@ ct_bottom = copy.copy(ct).move(bd.Location((0,-45,0)))
 #%%
 plt_with_holes = plt-diodes_left-diodes_right-pm_pins-ct_top-ct_bottom
 #%%
-chigi = chigiri_tsugi(extra_x=0.1, thickness=1).locate(bd.Location(plt.center())*bd.Location((0,0,-0.5)))
+chigi = chigiri_tsugi(extra_x=-0.2, thickness=1).locate(bd.Location(plt.center())*bd.Location((0,0,-0.5)))
 chigi_top = copy.copy(chigi).move(bd.Location((0,20,0)))
 chigiri_bottom = copy.copy(chigi).move(bd.Location((0,-45,0)))
 chigiri_complete = chigi_top+chigiri_bottom
@@ -257,13 +263,13 @@ skirt = bd.Box(chibb.X+7, chibb.Y+25, 0.2).locate(bd.Location(chigiri_complete.c
 chicskirt = chigiri_complete+skirt
 show(
     chicskirt,
-    plt_with_holes
+    # plt_with_holes
 )
 chicskirt.export_stl(__file__.replace(".py","_plate_connector.stl"))
 #%%
 show(
     #bc.translate((0,0,-2))
-   # plt_with_holes#.split(bd.Plane(bd.Plane.X))
+   plt_with_holes#.split(bd.Plane(bd.Plane.X))
     #, tc
     #, switches.translate((0,-1,plt.location.position.Z+pltbb.Z))
     #, caps.translate((0,0,plt.location.position.Z+pltbb.Z+cherry_switch.bounding_box().size.Z/3+0.5))
@@ -271,8 +277,8 @@ show(
     # ,dil_socket.locate(bd.Location(pm.center()))
     #,diodes_left
     #,diodes_right
-    ct_top
-    ,ct_bottom
+    # ct_top
+    # ,ct_bottom
     ,reset_camera=Camera.KEEP
 )
 #%%
@@ -316,7 +322,7 @@ show(
 )
 #%%
 bx = bd.Box(15,20,1).locate(bd.Location((-15/2,0,0)))-chigiri_tsugi(offset_amount=0.3).move(bd.Location((0,0,1)))
-chigiri = chigiri_tsugi(extra_x=0.1, thickness=0.8)
+chigiri = chigiri_tsugi(extra_x=0, thickness=0.8)
 cs = chigiri.bounding_box().size
 mantle = bd.Box(cs.X+2, 20, 0.2).locate(bd.Location((0,0,cs.Z/2)))
 chigiri_mantle=chigiri+mantle
